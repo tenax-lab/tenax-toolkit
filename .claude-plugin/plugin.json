@@ -1,0 +1,22 @@
+{
+  "name": "tenax-toolkit",
+  "version": "0.1.0",
+  "description": "Claude Code skills for tensor network simulations with Tenax — DMRG, iPEPS, TRG, symmetries, and more",
+  "author": {
+    "name": "Tenax Team",
+    "url": "https://github.com/tenax-lab/tenax"
+  },
+  "homepage": "https://github.com/tenax-lab/tenax",
+  "repository": "https://github.com/tenax-lab/tenax-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "tensor-networks",
+    "dmrg",
+    "ipeps",
+    "trg",
+    "physics",
+    "quantum",
+    "jax"
+  ],
+  "skills": "./skills/"
+}

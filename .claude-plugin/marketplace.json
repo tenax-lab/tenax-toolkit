@@ -1,0 +1,30 @@
+{
+  "name": "tenax-marketplace",
+  "owner": {
+    "name": "Tenax Team",
+    "email": "tenax@example.com"
+  },
+  "metadata": {
+    "description": "Skills for tensor network simulations with the Tenax library",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "tenax-toolkit",
+      "source": "./",
+      "description": "Complete toolkit for tensor network simulations with Tenax — DMRG, iPEPS, TRG, symmetries, migrations, and pedagogical workflows",
+      "version": "0.1.0",
+      "author": { "name": "Tenax Team" },
+      "category": "science",
+      "tags": [
+        "tensor-networks",
+        "dmrg",
+        "ipeps",
+        "trg",
+        "physics",
+        "quantum",
+        "jax"
+      ]
+    }
+  ]
+}
