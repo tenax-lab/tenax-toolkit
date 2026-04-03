@@ -47,7 +47,7 @@ uv sync --all-extras --dev
 
 ```python
 import tenax
-print(tenax.__version__)  # 0.1.0
+print(tenax.__version__)  # 0.4.0
 
 # Check which backend JAX is using
 import jax

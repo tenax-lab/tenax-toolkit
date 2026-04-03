@@ -176,6 +176,61 @@ print(f"Ground-state energy: {E_gs:.6f}")
 - **Learning rate matters** — if loss oscillates, reduce `gs_learning_rate`.
   If convergence is too slow, increase it.
 
+### Key parameters
+
+| Parameter | Role | Guidance |
+|-----------|------|----------|
+| `gs_num_steps` | Optimization steps | 100–300; more for larger D |
+| `gs_learning_rate` | Adam learning rate | Start 1e-3, reduce if oscillating |
+| `gs_optimizer` | Optimization algorithm | "adam", "lbfgs", or "cg" |
+| `gs_line_search` | Enable line search | Auto for lbfgs/cg |
+
+### Optimizer selection
+
+The optimizer is chosen via `gs_optimizer` in `iPEPSConfig`:
+
+| Optimizer | Setting | Line search | Best for |
+|-----------|---------|-------------|----------|
+| Adam | `gs_optimizer="adam"` (default) | No | Stable convergence, noisy gradients |
+| L-BFGS | `gs_optimizer="lbfgs"` | Yes (Armijo) | Fast convergence near minimum |
+| Conjugate gradient | `gs_optimizer="cg"` | Yes (Armijo) | Memory-efficient alternative |
+
+L-BFGS and CG use backtracking line search by default. Each trial step
+runs a fresh CTM convergence to avoid stale-environment artifacts.
+
+```python
+# L-BFGS example — reaches literature energy in ~30 steps
+config = iPEPSConfig(
+    max_bond_dim=2,
+    ctm=CTMConfig(chi=16, max_iter=50),
+    gs_optimizer="lbfgs",
+    gs_num_steps=30,
+    gs_line_search_max_steps=8,
+    su_init=True,
+)
+A_opt, env, E_gs = optimize_gs_ad(gate, None, config)
+```
+
+For Adam, a **cosine learning rate schedule** (lr → lr/10) is applied
+automatically when `gs_num_steps > 20`.
+
+### Explicit CTM differentiation (experimental)
+
+Set `gs_explicit_ad=True` to backpropagate through unrolled CTM iterations
+instead of implicit differentiation. This can give better gradients but is
+prone to NaN at large chi:
+
+```python
+config = iPEPSConfig(
+    max_bond_dim=2,
+    ctm=CTMConfig(chi=8, max_iter=20),
+    gs_explicit_ad=True,
+    gs_explicit_ad_steps=15,
+    gs_learning_rate=1e-3,
+    gs_num_steps=50,
+)
+```
+
 ### Physics insight
 
 Explain to students: "The simple update is like a mean-field approximation

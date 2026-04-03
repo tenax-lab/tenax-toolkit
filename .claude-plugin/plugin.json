@@ -1,6 +1,6 @@
 {
   "name": "tenax-toolkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code skills for tensor network simulations with Tenax — DMRG, iPEPS, TRG, symmetries, and more",
   "author": {
     "name": "Tenax Team",

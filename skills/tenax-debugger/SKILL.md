@@ -296,6 +296,23 @@ result = idmrg(W, config)
 
 ---
 
+### L-BFGS energy oscillates in iPEPS AD
+
+**Symptom:** Energy reaches near-literature value but then oscillates instead
+of converging smoothly.
+
+**Cause:** The L-BFGS Hessian approximation gets corrupted by non-stationary
+gradients from warm-started CTM environments. The gradient at the current
+parameters depends on the CTM convergence path, which changes between steps.
+
+**Fix:**
+1. Reduce `gs_line_search_max_steps` to tighten the line search
+2. Use `su_init=True` for a better starting point
+3. Switch to Adam for the final refinement steps
+4. Try `gs_optimizer="cg"` which is less sensitive to Hessian corruption
+
+---
+
 ## Common Runtime Warnings
 
 Tenax emits warnings in specific situations — they are diagnostic clues:
