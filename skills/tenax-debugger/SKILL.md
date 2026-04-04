@@ -311,6 +311,20 @@ parameters depends on the CTM convergence path, which changes between steps.
 3. Switch to Adam for the final refinement steps
 4. Try `gs_optimizer="cg"` which is less sensitive to Hessian corruption
 
+### NaN during iPEPS AD optimization
+
+**Symptom:** Energy becomes NaN after several AD steps, especially with
+large `max_iter` in CTMConfig.
+
+**Cause:** The GMRES backward for CTM implicit differentiation diverges
+when CTM corner singular values don't converge (gauge instability).
+
+**Fix:**
+1. Use the default VJP backward: `CTMConfig(ad_backward_method="vjp")`
+2. If already using VJP, reduce `max_iter` (try 40-60)
+3. Ensure proper initialization (Néel state for Heisenberg)
+4. Use `su_init=True` for a good starting tensor
+
 ---
 
 ## Common Runtime Warnings

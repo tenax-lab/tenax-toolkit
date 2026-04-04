@@ -214,6 +214,31 @@ A_opt, env, E_gs = optimize_gs_ad(gate, None, config)
 For Adam, a **cosine learning rate schedule** (lr → lr/10) is applied
 automatically when `gs_num_steps > 20`.
 
+### Backward method
+
+The backward pass through the CTM fixed point uses iterative VJP
+accumulation by default (`ad_backward_method="vjp"`). This is robust
+to gauge instability in the CTM environment tensors.
+
+If you encounter NaN during AD optimization, ensure you are using the
+VJP backward (the default). The GMRES backward (`"gmres"`) can diverge
+when the CTM corner singular values don't converge, which is common for
+2-site unit cells.
+
+```python
+config = iPEPSConfig(
+    max_bond_dim=2,
+    ctm=CTMConfig(
+        chi=16,
+        max_iter=60,
+        ad_backward_method="vjp",  # default, robust
+    ),
+    gs_num_steps=100,
+    gs_learning_rate=1e-3,
+    unit_cell="2site",
+)
+```
+
 ### Explicit CTM differentiation (experimental)
 
 Set `gs_explicit_ad=True` to backpropagate through unrolled CTM iterations
