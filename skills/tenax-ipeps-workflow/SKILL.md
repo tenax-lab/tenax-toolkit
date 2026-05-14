@@ -189,6 +189,16 @@ config = iPEPSConfig(
     gs_line_search_method="hager_zhang",
     gs_metric_precond=True,
     gs_c4v=True,
+    # Variational stationarity test on the gradient (variPEPS-style).
+    # The legacy "dE" criterion underflows near flat minima — a
+    # DeprecationWarning fires if you stick with the default. Switch
+    # all new code to "grad_norm" or "both".  (issue #448)
+    gs_conv_criterion="grad_norm",
+    gs_grad_norm_tol=1e-5,
+    # Cap consecutive L-BFGS resets before the optimizer exits with
+    # best_params (matches variPEPS optimizer_random_noise_max_retries).
+    # Also caps the CTMRG-error-driven reset path (issue #454).
+    gs_stall_recovery_retries=5,
     su_init=True,
 )
 
@@ -221,11 +231,10 @@ config = iPEPSConfig(
 A_opt, env, E_gs = optimize_gs_ad(gate, None, config)
 ```
 
-### Chi-ramping schedule
+### Chi-ramping schedule (unified, retrace-free — #453)
 
-For production calculations, ramp chi from small to large. Each level
-warm-starts from the previous optimized tensor, avoiding cold starts at
-large chi (Zhang, Yang & Corboz, arXiv:2505.00494):
+For production calculations, ramp chi from small to large via the
+unified shim (Zhang, Yang & Corboz, arXiv:2505.00494):
 
 ```python
 from tenax import optimize_gs_ad_chi_schedule
@@ -234,11 +243,24 @@ chi_schedule = [(8, 30), (16, 20), (32, 15)]
 result = optimize_gs_ad_chi_schedule(gate, None, config, chi_schedule)
 ```
 
-Each tuple is `(chi, num_optimization_steps)`. The schedule overrides
-`config.ctm.chi` and `config.gs_num_steps` at each level.
+Each tuple is `(chi, num_optimization_steps)`.  Internally this runs
+``optimize_gs_ad`` **once** with envs padded to ``max(chi)=32`` from
+step 1 and ramps the logical χ at the configured step boundaries via
+``iPEPSConfig.gs_chi_schedule_steps``.  The JIT-compiled CTM / energy /
+backward kernels therefore see a single fixed env shape across the
+whole run — no per-stage retraces, which is the dominant cost on
+GPU/TPU.  The shim overrides ``config.ctm.chi``, ``config.ctm.chi_max``,
+``config.gs_num_steps``, and ``config.gs_chi_schedule_steps``; users
+should not set ``gs_chi_schedule_steps`` directly.
 
-For finer-grained control, ``CTMConfig.chi_ramp`` ramps chi *within*
-each CTM convergence call (1.2–2.1× speedup on GPU):
+Trade-off: early stages contract ``max(chi)``-shaped envs (zeros in
+the unused rows), paying more FLOPs per CTM iteration than a per-stage
+cold-start would.  The recompile cost this avoids dominates in
+practice.
+
+For finer-grained control *within* a single CTM convergence call
+(not across AD steps), ``CTMConfig.chi_ramp`` is still available and
+gives 1.2–2.1× speedup on GPU:
 
 ```python
 config = iPEPSConfig(
@@ -250,6 +272,9 @@ config = iPEPSConfig(
     gs_num_steps=100,
 )
 ```
+
+``chi_ramp`` is mutually exclusive with ``CTMConfig.chi_auto_bump``
+(variPEPS-style reactive bump that watches the truncation error).
 
 ### Key AD tips
 
