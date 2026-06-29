@@ -189,16 +189,6 @@ config = iPEPSConfig(
     gs_line_search_method="hager_zhang",
     gs_metric_precond=True,
     gs_c4v=True,
-    # Variational stationarity test on the gradient (variPEPS-style).
-    # The legacy "dE" criterion underflows near flat minima — a
-    # DeprecationWarning fires if you stick with the default. Switch
-    # all new code to "grad_norm" or "both".  (issue #448)
-    gs_conv_criterion="grad_norm",
-    gs_grad_norm_tol=1e-5,
-    # Cap consecutive L-BFGS resets before the optimizer exits with
-    # best_params (matches variPEPS optimizer_random_noise_max_retries).
-    # Also caps the CTMRG-error-driven reset path (issue #454).
-    gs_stall_recovery_retries=5,
     su_init=True,
 )
 
@@ -231,10 +221,11 @@ config = iPEPSConfig(
 A_opt, env, E_gs = optimize_gs_ad(gate, None, config)
 ```
 
-### Chi-ramping schedule (unified, retrace-free — #453)
+### Chi-ramping schedule
 
-For production calculations, ramp chi from small to large via the
-unified shim (Zhang, Yang & Corboz, arXiv:2505.00494):
+For production calculations, ramp chi from small to large. Each level
+warm-starts from the previous optimized tensor, avoiding cold starts at
+large chi (Zhang, Yang & Corboz, arXiv:2505.00494):
 
 ```python
 from tenax import optimize_gs_ad_chi_schedule
@@ -243,38 +234,29 @@ chi_schedule = [(8, 30), (16, 20), (32, 15)]
 result = optimize_gs_ad_chi_schedule(gate, None, config, chi_schedule)
 ```
 
-Each tuple is `(chi, num_optimization_steps)`.  Internally this runs
-``optimize_gs_ad`` **once** with envs padded to ``max(chi)=32`` from
-step 1 and ramps the logical χ at the configured step boundaries via
-``iPEPSConfig.gs_chi_schedule_steps``.  The JIT-compiled CTM / energy /
-backward kernels therefore see a single fixed env shape across the
-whole run — no per-stage retraces, which is the dominant cost on
-GPU/TPU.  The shim overrides ``config.ctm.chi``, ``config.ctm.chi_max``,
-``config.gs_num_steps``, and ``config.gs_chi_schedule_steps``; users
-should not set ``gs_chi_schedule_steps`` directly.
+Each tuple is `(chi, num_optimization_steps)`. The schedule overrides
+`config.ctm.chi` and `config.gs_num_steps` at each level.
 
-Trade-off: early stages contract ``max(chi)``-shaped envs (zeros in
-the unused rows), paying more FLOPs per CTM iteration than a per-stage
-cold-start would.  The recompile cost this avoids dominates in
-practice.
-
-For finer-grained control *within* a single CTM convergence call
-(not across AD steps), ``CTMConfig.chi_ramp`` is still available and
-gives 1.2–2.1× speedup on GPU:
+To grow chi *inside* CTM convergence (recommended over a between-step
+ramp, which zero-pads the env and can corrupt the fixed point), use the
+in-CTM auto-bump (variPEPS §2.8.2):
 
 ```python
 config = iPEPSConfig(
     max_bond_dim=D,
     ctm=CTMConfig(
-        chi=32,
-        chi_ramp=[(8, 10), (16, 10), (32, None)],
+        chi=8,
+        chi_max=32,
+        ctmrg_heuristic_increase_chi=True,  # grows chi during CTM convergence
     ),
     gs_num_steps=100,
 )
 ```
 
-``chi_ramp`` is mutually exclusive with ``CTMConfig.chi_auto_bump``
-(variPEPS-style reactive bump that watches the truncation error).
+The env is always re-converged at the new chi before the optimizer sees
+it. The legacy `CTMConfig.chi_ramp` and `chi_auto_bump` knobs still work
+but emit `DeprecationWarning` and are slated for removal (issue #512) —
+prefer `ctmrg_heuristic_increase_chi`.
 
 ### Key AD tips
 
@@ -322,6 +304,46 @@ config = iPEPSConfig(
 )
 A_opt, env, E_gs = optimize_gs_ad(gate, None, config)
 ```
+
+### Split-CTM AD (large-D, lower memory)
+
+For large bond dimension, the split (ket/bra-separated) CTM avoids forming
+the fused χ²·D⁶ double layer and contracts at χ²·D⁴ instead. Enable it with
+`fuse_virtual_legs=False` on a single-site config — the whole optimizer
+(CTM, line-search probe, warm-start, final env) runs through the split
+forward and returns a `SplitCTMTensorEnv`:
+
+```python
+config = iPEPSConfig(
+    max_bond_dim=D,
+    unit_cell="1x1",
+    gs_recipe="1x1",
+    gs_implicit_ad=True,          # implicit AD (default) — the validated split path
+    ctm=CTMConfig(
+        chi=chi,
+        chi_I=chi,                # interlayer bond; None => chi_I = chi
+        fuse_virtual_legs=False,  # split χ²·D⁴ forward instead of fused χ²·D⁶
+    ),
+    su_init=True,
+)
+A_opt, env, E_gs = optimize_gs_ad(gate, None, config)  # env is a SplitCTMTensorEnv
+```
+
+Constraints (each raises a clear `NotImplementedError` otherwise):
+
+- **Single-site dense only** — `unit_cell="1x1"` + `gs_recipe="1x1"`,
+  `DenseTensor`. SymmetricTensor/fermionic and multisite split AD are later
+  phases.
+- **Fixed chi** — the χ-changing knobs (`chi_ramp`, `chi_auto_bump`,
+  `ctmrg_heuristic_increase_chi`) and CTM schedules are rejected; pick one
+  `chi`. `gs_metric_precond` auto-disables with a warning.
+- **The memory win is large-D** — below D≈16 the default fused path
+  (`fuse_virtual_legs=True`) is just as fast and the cleaner choice; reach
+  for split when the fused χ²·D⁶ double layer no longer fits.
+
+The implicit gradient matches the trusted explicit-AD gradient to ~1e-12.
+The split energy at production `chi_I=chi` is an *approximation* of the
+fused energy — they coincide exactly only at the lossless `chi_I = chi·D`.
 
 ### Key differences from simple update
 
