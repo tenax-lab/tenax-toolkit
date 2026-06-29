@@ -285,23 +285,6 @@ result = idmrg(W, config)
 - **CTM not converged** → increase `ctm.chi` and `ctm.max_iter`.
 - **dt too large** → reduce imaginary time step (0.1, 0.05).
 - **Wrong unit cell** → use `"2site"` for Néel order.
-- **AD exits at step 1 with E roughly equal to SU energy** → `dE`
-  underflowed the convergence tolerance.  Switch to
-  `gs_conv_criterion="grad_norm"` (or `"both"`); the legacy `"dE"`
-  default emits a `DeprecationWarning` for this reason (issue #448).
-- **`optimize_gs_ad` returns after a handful of resets without
-  improvement** → the reset budget `gs_stall_recovery_retries`
-  (default 5) was exhausted.  Raise it for intrinsically hard models
-  (e.g. SU plateau on sublattice-rotated Heisenberg) or pair with
-  `su_init=False` to start from a different basin.
-- **`CTMRGGradientError` mid-run** → the Arnoldi precheck on
-  ρ(J^T) tripped.  Each occurrence consumes one
-  `gs_stall_recovery_retries` slot (#454); if you trip the cap, the
-  optimizer exits with `best_params`.
-- **Chi-ramping recompiles between stages** → use
-  `optimize_gs_ad_chi_schedule` (issue #453, unified shim) instead of
-  manually restarting at each χ; envs are padded to `max(chi)` so the
-  JIT cache is hit once.
 
 ### Reference values
 
