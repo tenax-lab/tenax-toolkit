@@ -16,7 +16,8 @@ A collection of Claude Code skills for [Tenax](https://github.com/tenax-lab/tena
 ### Algorithms
 - **tenax-dmrg-workflow** — Finite DMRG, iDMRG, and 2D cylinder DMRG ground-state calculations
 - **tenax-ipeps-workflow** — iPEPS for 2D quantum systems: simple update, AD optimization, excitation spectra
-- **tenax-trg-workflow** — TRG/HOTRG for 2D classical statistical mechanics
+- **tenax-fermionic-ipeps** — Fermionic iPEPS (fPEPS) with graded tensors: spinless fermions, the t-V model, `fpeps()` and `optimize_fpeps_ad`
+- **tenax-trg-workflow** — TRG/HOTRG and Gilt-TNR for 2D classical statistical mechanics
 - **tenax-observables** — Compute expectation values, correlations, entanglement entropy from MPS/iPEPS
 
 ### Tools
