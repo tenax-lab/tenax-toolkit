@@ -13,7 +13,7 @@
       "name": "tenax-toolkit",
       "source": "./",
       "description": "Complete toolkit for tensor network simulations with Tenax — DMRG, iPEPS, TRG, symmetries, migrations, and pedagogical workflows",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": { "name": "Tenax Team" },
       "category": "science",
       "tags": [
